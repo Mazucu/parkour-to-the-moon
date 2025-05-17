@@ -1,0 +1,26 @@
+{
+  "name": "crossmint-megaverse-challenge",
+  "version": "1.0.0",
+  "description": "Solution for Crossmint Megaverse Challenge with improved rate limit handling",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node dist/index.js",
+    "start:build": "node dist/index.js build",
+    "start:clean": "node dist/index.js clean",
+    "dev": "tsc -w",
+    "lint": "eslint . --ext .ts"
+  },
+  "keywords": [
+    "crossmint",
+    "megaverse",
+    "challenge",
+    "api",
+    "rate-limiting"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.0.4"
+  }
+}
