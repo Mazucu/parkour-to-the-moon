@@ -3,7 +3,7 @@
 import { sleep } from "./sleep";
 
 /**
- * A simple token bucket rate limiter to avoid 429 errors
+ * Simple rate limiter to avoid hitting API limits
  */
 class RateLimiter {
   private tokens: number;
@@ -11,24 +11,23 @@ class RateLimiter {
   private maxTokens: number;
   private refillRate: number; // tokens per millisecond
 
-  constructor(maxTokens = 10, refillRatePerSecond = 2) {
-    this.tokens = maxTokens;
+  constructor(maxRequests = 10, requestsPerSecond = 2) {
+    this.tokens = maxRequests;
     this.lastRefill = Date.now();
-    this.maxTokens = maxTokens;
-    this.refillRate = refillRatePerSecond / 1000;
+    this.maxTokens = maxRequests;
+    this.refillRate = requestsPerSecond / 1000;
   }
 
   async getToken(): Promise<void> {
-    // Refill tokens based on time elapsed
     this.refill();
 
     if (this.tokens >= 1) {
-      // If tokens are available, consume one and proceed
+      // We have tokens available, use one
       this.tokens -= 1;
       return;
     }
 
-    // Otherwise, calculate how long to wait for next token
+    // Wait until we have a token
     const waitTime = Math.ceil((1 - this.tokens) / this.refillRate);
     await sleep(waitTime);
     this.tokens -= 1;
@@ -43,23 +42,20 @@ class RateLimiter {
     this.lastRefill = now;
   }
 
-  /**
-   * Adjust rate limiter settings based on observed API response patterns
-   */
-  adjustRateLimit(decreaseFactor = 0.8): void {
-    // Reduce rate when hitting 429s
-    this.refillRate = this.refillRate * decreaseFactor;
+  // Slow down when we hit rate limits
+  adjustForRateLimit(): void {
+    // Reduce rate by 20%
+    this.refillRate = this.refillRate * 0.8;
     console.log(
-      `⚙️ Adjusted rate limiter: ${(this.refillRate * 1000).toFixed(
+      `⚙️ Slowing down: ${(this.refillRate * 1000).toFixed(
         2
-      )} requests/second`
+      )} req/sec`
     );
   }
 }
 
 /**
- * Ejecuta un array de tareas (funciones que devuelven promesas) con un límite de concurrencia.
- * Devuelve un array de resultados con estado y valor/razón de cada tarea.
+ * Runs tasks with a limit on how many can run at once
  */
 export async function runtWithConcurrencyLimit<T>(
   tasks: (() => Promise<T>)[],
@@ -68,14 +64,15 @@ export async function runtWithConcurrencyLimit<T>(
   const results: PromiseSettledResult<T>[] = [];
   let i = 0;
 
-  // Create a rate limiter with reasonable default values
+  // Create a rate limiter that allows each worker to make requests
   const rateLimiter = new RateLimiter(limit * 2, limit * 0.5);
 
-  const runners = new Array(limit).fill(0).map(async () => {
+  // Create worker threads up to the concurrency limit
+  const workers = new Array(limit).fill(0).map(async () => {
     while (i < tasks.length) {
       const current = i++;
       try {
-        // Wait for rate limiter before executing task
+        // Wait for permission from rate limiter
         await rateLimiter.getToken();
 
         const value = await tasks[current]();
@@ -83,13 +80,14 @@ export async function runtWithConcurrencyLimit<T>(
       } catch (error: any) {
         results[current] = { status: "rejected", reason: error };
 
-        // If we hit a rate limit error, adjust the rate limiter
+        // If we hit a rate limit, slow down
         if (error.message && error.message.includes("429")) {
-          rateLimiter.adjustRateLimit();
+          rateLimiter.adjustForRateLimit();
         }
       }
     }
   });
-  await Promise.all(runners);
+
+  await Promise.all(workers);
   return results;
 }

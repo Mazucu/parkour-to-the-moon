@@ -38,7 +38,7 @@ export interface IMegaverseApiClient {
 }
 
 /**
- * Custom error class that includes response headers for rate limit handling
+ * Custom error with API response details to help with retry logic
  */
 export class ApiError extends Error {
   headers: Headers;
@@ -53,14 +53,15 @@ export class ApiError extends Error {
 }
 
 /* -------------------------------------------------------------------------- */
-/*  Client                                                                     */
+/*  API Client                                                                 */
 /* -------------------------------------------------------------------------- */
 export class MegaverseApiClient implements IMegaverseApiClient {
   private readonly BASE_URL = "https://challenge.crossmint.io/api";
 
   constructor(private readonly candidateId: string) {}
 
-  /* --------------------------------  MAPS  -------------------------------- */
+  /* --- MAP OPERATIONS --- */
+
   async getGoalMap(): Promise<string[][]> {
     const resp = await fetch(
       `${this.BASE_URL}/map/${this.candidateId}/goal`
@@ -68,7 +69,9 @@ export class MegaverseApiClient implements IMegaverseApiClient {
 
     if (!resp.ok) {
       throw new ApiError(
-        `getGoalMap failed (${resp.status}): ${await resp.text()}`,
+        `Goal map request failed (${
+          resp.status
+        }): ${await resp.text()}`,
         resp
       );
     }
@@ -77,9 +80,6 @@ export class MegaverseApiClient implements IMegaverseApiClient {
     return goal;
   }
 
-  /**
-   * Fetch the _current_ map (null or { type, … }) from /api/map/:candidateId
-   */
   async getCurrentMap(): Promise<CurrentCell[][]> {
     const resp = await fetch(
       `${this.BASE_URL}/map/${this.candidateId}`
@@ -87,12 +87,13 @@ export class MegaverseApiClient implements IMegaverseApiClient {
 
     if (!resp.ok) {
       throw new ApiError(
-        `getCurrentMap failed (${resp.status}): ${await resp.text()}`,
+        `Current map request failed (${
+          resp.status
+        }): ${await resp.text()}`,
         resp
       );
     }
 
-    // The API returns { map: { content: CurrentCell[][], … } }
     const body = (await resp.json()) as {
       map: { content: CurrentCell[][] };
     };
@@ -100,7 +101,8 @@ export class MegaverseApiClient implements IMegaverseApiClient {
     return body.map.content;
   }
 
-  /* -----------------------------  POLYANETS  ------------------------------ */
+  /* --- POLYANETS --- */
+
   async createPolyanet(row: number, column: number): Promise<void> {
     await this.post("polyanets", { row, column });
   }
@@ -109,7 +111,8 @@ export class MegaverseApiClient implements IMegaverseApiClient {
     await this.del("polyanets", { row, column });
   }
 
-  /* ------------------------------  SOLOONS  ------------------------------- */
+  /* --- SOLOONS --- */
+
   async createSoloon(
     row: number,
     column: number,
@@ -122,7 +125,8 @@ export class MegaverseApiClient implements IMegaverseApiClient {
     await this.del("soloons", { row, column });
   }
 
-  /* ------------------------------  COMETHS  ------------------------------- */
+  /* --- COMETHS --- */
+
   async createCometh(
     row: number,
     column: number,
@@ -135,9 +139,7 @@ export class MegaverseApiClient implements IMegaverseApiClient {
     await this.del("comeths", { row, column });
   }
 
-  /* ---------------------------------------------------------------------- */
-  /*  Internal helpers                                                      */
-  /* ---------------------------------------------------------------------- */
+  /* --- HELPER METHODS --- */
 
   private async post(
     resource: string,
@@ -157,7 +159,7 @@ export class MegaverseApiClient implements IMegaverseApiClient {
 
     if (!resp.ok) {
       throw new ApiError(
-        `${resource}: POST failed (${
+        `POST ${resource} failed (${
           resp.status
         }): ${await resp.text()}`,
         resp
@@ -183,7 +185,7 @@ export class MegaverseApiClient implements IMegaverseApiClient {
 
     if (!resp.ok) {
       throw new ApiError(
-        `${resource}: DELETE failed (${
+        `DELETE ${resource} failed (${
           resp.status
         }): ${await resp.text()}`,
         resp

@@ -2,24 +2,29 @@ import { MegaverseApiClient } from "./api/MegaverseApiClient";
 import { MegaverseBuilder } from "./orchestrator/MegaverseBuilder";
 
 export async function main(): Promise<void> {
-  // Get candidate ID from either environment variable, command line arg, or default
+  // Get candidate ID from environment or command line
   const candidateId =
     process.env.CANDIDATE_ID ??
     (process.argv[2] ? process.argv[2] : "YOUR_CANDIDATE_ID_HERE");
 
   if (candidateId === "YOUR_CANDIDATE_ID_HERE") {
+    console.error("⚠ Please provide your candidate ID:");
     console.error(
-      "⚠ Please provide a valid candidate ID via CANDIDATE_ID env var or as first argument"
+      "- As environment variable: CANDIDATE_ID=your-id npm start"
     );
-    console.error("Example: node dist/index.js your-candidate-id");
+    console.error(
+      "- Or as argument: node dist/index.js your-id [build|clean]"
+    );
     process.exit(1);
   }
 
   console.log(`🔑 Using candidate ID: ${candidateId}`);
+
+  // Create API client and builder
   const client = new MegaverseApiClient(candidateId);
   const builder = new MegaverseBuilder(client);
 
-  // Determine action from command line args
+  // Determine what action to perform (build or clean)
   const action = process.argv[3]?.toLowerCase() || "build";
   console.log(`🚀 Action: ${action}`);
 
@@ -27,32 +32,27 @@ export async function main(): Promise<void> {
     switch (action) {
       case "clean":
         console.log("🧹 Cleaning universe...");
-        await builder.resetUniverseToBlue();
+        await builder.cleanUniverse();
         break;
 
       case "build":
       default:
-        console.log(
-          "🔨 Building complete universe (Crossmint logo)..."
-        );
+        console.log("🔨 Building Crossmint logo universe...");
         await builder.buildUniverse();
         break;
     }
 
-    console.log("✅ Operation completed successfully");
+    console.log("✅ Done!");
   } catch (error) {
-    console.error(
-      "💥 Unhandled error in main():",
-      (error as Error).message
-    );
+    console.error("💥 Error:", (error as Error).message);
     process.exit(1);
   } finally {
-    // Make sure to stop any timers
+    // Always clean up by stopping the concurrency timer
     builder.stopAdjusting();
   }
 }
 
-// Run if this is the main module (not imported)
+// Run the main function if this file is executed directly
 if (require.main === module) {
   main().catch((err) => {
     console.error("Fatal error:", err);
